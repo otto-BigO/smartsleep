@@ -72,8 +72,9 @@ public class AudioSleepMonitor {
         }
     }
     
-    private var assertionID: IOPMAssertionID = 0
-    private var caffeinateProcess: Process?
+    private var systemSleepAssertionID: IOPMAssertionID = 0
+    private var idleSleepAssertionID: IOPMAssertionID = 0
+    private var displaySleepAssertionID: IOPMAssertionID = 0
     private var timer: Timer?
     private var graceTimer: Timer?
     
@@ -81,6 +82,9 @@ public class AudioSleepMonitor {
     private var currentOutputDeviceID: AudioObjectID = kAudioObjectUnknown
     
     private init() {
+        // Sikkerhedsnet. Blev appen draebt med SIGKILL mens den holdt Mac'en vaagen,
+        // staar disablesleep stadig paa 1 og Mac'en vil aldrig sove. Ryd op ved opstart.
+        runPmsetDisableSleep(0)
         startMonitoring()
     }
     
@@ -389,6 +393,57 @@ public class AudioSleepMonitor {
         return isRunningStatus == noErr && isRunning != 0
     }
     
+    // MARK: - Power Assertions
+    
+    /// Assertions ejes af processen. Kernen frigiver dem automatisk naar processen doer,
+    /// derfor kan de ikke blive haengende sådan som en caffeinate-underproces kunne.
+    private func createAssertion(_ type: String, into id: inout IOPMAssertionID) {
+        guard id == 0 else { return }
+        var newID: IOPMAssertionID = 0
+        let reason = "SmartSleep: Holding Mac awake" as CFString
+        let result = IOPMAssertionCreateWithName(
+            type as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            reason,
+            &newID
+        )
+        if result == kIOReturnSuccess {
+            id = newID
+        } else {
+            print("[SmartSleep] Kunne ikke oprette assertion \(type): \(result)")
+        }
+    }
+    
+    private func releaseAssertion(_ id: inout IOPMAssertionID) {
+        guard id != 0 else { return }
+        IOPMAssertionRelease(id)
+        id = 0
+    }
+    
+    private func releaseAllAssertions() {
+        releaseAssertion(&systemSleepAssertionID)
+        releaseAssertion(&idleSleepAssertionID)
+        releaseAssertion(&displaySleepAssertionID)
+    }
+    
+    /// Kaldes ved afslutning og fra signalhaandteringen. Skal kunne kaldes flere gange uden skade.
+    public func shutdownCleanup() {
+        timer?.invalidate()
+        timer = nil
+        graceTimer?.invalidate()
+        graceTimer = nil
+        
+        releaseAllAssertions()
+        DisplayBrightnessManager.shared.restoreDisplay()
+        
+        // Vent paa pmset her. Processen er paa vej ud, og en detached underproces
+        // naar ikke at koere faerdig.
+        runPmsetDisableSleep(0, waitForExit: true)
+        
+        isSleepPrevented = false
+        print("[SmartSleep] Afsluttet, dvale er givet fri igen")
+    }
+    
     private func evaluateState() {
         let shouldPreventSleep = isForceKeepAwake || (isAutoEnabled && (isMediaDetected || graceTimer != nil))
         
@@ -404,20 +459,9 @@ public class AudioSleepMonitor {
     private func enableSleepPrevention() {
         guard !isSleepPrevented else { return }
         
-        let reason = "SmartSleep: Holding Mac awake" as CFString
-        IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventSystemSleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            reason,
-            &assertionID
-        )
-        
-        stopCaffeinateProcess()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
-        process.arguments = ["-i", "-s", "-u", "-d"]
-        try? process.run()
-        caffeinateProcess = process
+        createAssertion(kIOPMAssertionTypePreventSystemSleep, into: &systemSleepAssertionID)
+        createAssertion(kIOPMAssertPreventUserIdleSystemSleep, into: &idleSleepAssertionID)
+        createAssertion(kIOPMAssertPreventUserIdleDisplaySleep, into: &displaySleepAssertionID)
         
         runPmsetDisableSleep(1)
         
@@ -433,12 +477,7 @@ public class AudioSleepMonitor {
     private func disableSleepPrevention() {
         guard isSleepPrevented else { return }
         
-        if assertionID != 0 {
-            IOPMAssertionRelease(assertionID)
-            assertionID = 0
-        }
-        
-        stopCaffeinateProcess()
+        releaseAllAssertions()
         runPmsetDisableSleep(0)
         
         DisplayBrightnessManager.shared.restoreDisplay()
@@ -448,23 +487,21 @@ public class AudioSleepMonitor {
         notifyObservers(source: "", title: "", artist: "")
     }
     
-    private func runPmsetDisableSleep(_ state: Int) {
+    /// -n gør at sudo fejler med det samme i stedet for at haenge og vente paa et kodeord,
+    /// hvis sudoers-reglen i /etc/sudoers.d/smartsleep mangler.
+    private func runPmsetDisableSleep(_ state: Int, waitForExit: Bool = false) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-        process.arguments = ["/usr/bin/pmset", "-a", "disablesleep", "\(state)"]
-        try? process.run()
-    }
-    
-    private func stopCaffeinateProcess() {
-        if let proc = caffeinateProcess, proc.isRunning {
-            proc.terminate()
+        process.arguments = ["-n", "/usr/bin/pmset", "-a", "disablesleep", "\(state)"]
+        do {
+            try process.run()
+            if waitForExit { process.waitUntilExit() }
+        } catch {
+            print("[SmartSleep] Kunne ikke koere pmset: \(error)")
         }
-        caffeinateProcess = nil
     }
     
     deinit {
-        timer?.invalidate()
-        graceTimer?.invalidate()
-        disableSleepPrevention()
+        shutdownCleanup()
     }
 }

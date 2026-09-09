@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var launchAtLoginItem: NSMenuItem!
     
     private let monitor = AudioSleepMonitor.shared
+    private var signalSources: [DispatchSourceSignal] = []
     
     static func main() {
         let app = NSApplication.shared
@@ -23,7 +24,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupMonitorCallbacks()
+        setupSignalHandlers()
         updateLaunchAtLoginState()
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        monitor.shutdownCleanup()
+    }
+    
+    /// `pkill` sender SIGTERM, blandt andet fra install.sh. Uden det her ville
+    /// disablesleep blive staaende paa 1 og Mac'en ville aldrig sove igen.
+    /// SIGKILL kan ikke fanges, det daekkes af nulstillingen ved opstart.
+    private func setupSignalHandlers() {
+        for sig in [SIGTERM, SIGINT, SIGHUP] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler {
+                AudioSleepMonitor.shared.shutdownCleanup()
+                exit(0)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
     }
     
     private func setupStatusItem() {
