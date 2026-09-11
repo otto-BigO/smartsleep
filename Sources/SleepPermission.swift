@@ -10,7 +10,9 @@ enum SleepPermission {
     static func rule(for user: String) -> String? {
         guard !user.isEmpty,
               user.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) }) else { return nil }
-        return "\(user) ALL=(ALL) NOPASSWD: /usr/bin/pmset -a disablesleep *"
+        // Kun de to praecise kommandoer. Et "*" til sidst ville tillade vilkaarlige ekstra
+        // argumenter som root, fx at aendre alle stroemindstillinger eller planlaegge nedlukning.
+        return "\(user) ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1"
     }
     
     /// Reglen valideres med visudo foer den laegges paa plads. En ugyldig fil i sudoers.d

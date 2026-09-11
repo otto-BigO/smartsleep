@@ -32,7 +32,7 @@ An Apple Silicon Mac with macOS 14.2 or newer. It runs on macOS 12 and 13 too, b
 1. Download the DMG from [Releases](https://github.com/otto-BigO/smartsleep/releases).
 2. Open it and drag SmartSleep to Applications.
 3. The app is not notarized by Apple, so macOS blocks it the first time. Open **System Settings > Privacy & Security** and click **Open Anyway**.
-4. On first launch SmartSleep asks for your password once. It adds one sudoers rule, `/etc/sudoers.d/smartsleep`, so the app can run `pmset -a disablesleep` without a password. That command is the only way to stop a Mac from sleeping when the lid closes. If you skip it, the Mac still stays awake while music plays, but only with the lid open.
+4. On first launch SmartSleep asks for your password once. It adds one sudoers rule, `/etc/sudoers.d/smartsleep`, that lets the app run exactly `pmset -a disablesleep 0` and `pmset -a disablesleep 1` without a password. That command is the only way to stop a Mac from sleeping when the lid closes. If you skip it, the Mac still stays awake while music plays, but only with the lid open.
 
 ## Build from source
 
@@ -46,4 +46,9 @@ Needs the Xcode Command Line Tools (`xcode-select --install`).
 
 - If the app quits or crashes, the Mac does not get stuck awake. It resets `disablesleep` when it exits and again every time it starts.
 - macOS asks once whether SmartSleep may control Spotify and Brave. That is only used to read the title and the cover.
+- The album cover and the video thumbnail are downloaded from Spotify's and YouTube's image servers. Nothing else leaves your Mac.
 - Logs: `/usr/bin/log stream --predicate 'subsystem == "com.personal.SmartSleep"'`
+
+## License
+
+MIT. See [LICENSE](LICENSE).

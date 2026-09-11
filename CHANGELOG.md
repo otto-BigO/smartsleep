@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 (2026-09-11)
+
+- The sudoers rule now allows only `pmset -a disablesleep 0` and `pmset -a disablesleep 1`. Before, it allowed any extra arguments after `disablesleep`, which let any program running as you change other power settings as root.
+- MIT license.
+
 ## 1.0.0 (2026-09-11)
 
 First release.
