@@ -7,7 +7,7 @@ APP_BUNDLE="$BUILD_DIR/SmartSleep.app"
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 
-echo "🔨 Bygger SmartSleep.app med SwiftUI Settings GUI..."
+echo "🔨 Bygger SmartSleep.app..."
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$MACOS_DIR"
@@ -15,8 +15,9 @@ mkdir -p "$RESOURCES_DIR"
 
 # Copy Info.plist
 cp "$SCRIPT_DIR/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+cp "$SCRIPT_DIR/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 
-# Compile Swift code including SwiftUI SettingsView and SettingsWindowController
+# Compile Swift code
 swiftc -O \
     -target arm64-apple-macosx12.0 \
     -o "$MACOS_DIR/SmartSleep" \
@@ -35,4 +36,4 @@ codesign --force --sign - --identifier com.personal.SmartSleep \
     --requirements '=designated => identifier "com.personal.SmartSleep"' \
     "$APP_BUNDLE"
 
-echo "✅ SmartSleep.app blev bygget succesfuldt med Glass GUI i $APP_BUNDLE!"
+echo "✅ SmartSleep.app bygget i $APP_BUNDLE!"

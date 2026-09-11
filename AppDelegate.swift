@@ -5,11 +5,9 @@ import Foundation
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var statusMenuItem: NSMenuItem!
-    private var lidMenuItem: NSMenuItem!
+    private var nowPlayingMenuItem: NSMenuItem!
     private var autoMenuItem: NSMenuItem!
     private var forceMenuItem: NSMenuItem!
-    private var dimMenuItem: NSMenuItem!
-    private var launchAtLoginItem: NSMenuItem!
     
     private let monitor = AudioSleepMonitor.shared
     private var signalSources: [DispatchSourceSignal] = []
@@ -25,11 +23,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupMonitorCallbacks()
         setupSignalHandlers()
-        updateLaunchAtLoginState()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         monitor.shutdownCleanup()
+    }
+    
+    /// Aabnes appen igen mens den koerer (fx fra Finder eller Spotlight), vises indstillingerne.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return false
     }
     
     /// `pkill` sender SIGTERM, blandt andet fra install.sh. Uden det her ville
@@ -48,100 +51,92 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    // MARK: - Menulinje
+    
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        
-        if let button = statusItem.button {
-            button.title = "💤"
-            button.toolTip = "SmartSleep: Holder Mac'en vågen når der spilles lyd"
-        }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        setStatusIcon("moon.zzz", description: "Mac'en må sove")
         
         let menu = NSMenu()
         
-        // Status header
-        statusMenuItem = NSMenuItem(title: "Status: Søvn tilladt", action: nil, keyEquivalent: "")
+        statusMenuItem = NSMenuItem(title: "Mac'en må sove", action: nil, keyEquivalent: "")
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
         
-        // Lid state header
-        lidMenuItem = NSMenuItem(title: "Skærmlåg: Åbent 💻", action: nil, keyEquivalent: "")
-        lidMenuItem.isEnabled = false
-        menu.addItem(lidMenuItem)
+        nowPlayingMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        nowPlayingMenuItem.isEnabled = false
+        nowPlayingMenuItem.isHidden = true
+        menu.addItem(nowPlayingMenuItem)
         
-        menu.addItem(NSMenuItem.separator())
+        menu.addItem(.separator())
         
-        // Settings GUI window trigger
-        let settingsItem = NSMenuItem(title: "Indstillinger...", action: #selector(openSettings), keyEquivalent: "")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // Auto mode toggle
-        autoMenuItem = NSMenuItem(title: "Automatisk dvalestyring (når der spilles lyd)", action: #selector(toggleAutoMode), keyEquivalent: "")
-        autoMenuItem.target = self
-        autoMenuItem.state = monitor.isAutoEnabled ? .on : .off
+        autoMenuItem = makeItem("Automatisk ved lyd", action: #selector(toggleAutoMode))
         menu.addItem(autoMenuItem)
-        
-        // Force wake toggle
-        forceMenuItem = NSMenuItem(title: "Tving forbliv vågen (altid)", action: #selector(toggleForceMode), keyEquivalent: "")
-        forceMenuItem.target = self
-        forceMenuItem.state = monitor.isForceKeepAwake ? .on : .off
+        forceMenuItem = makeItem("Hold altid vågen", action: #selector(toggleForceMode))
         menu.addItem(forceMenuItem)
         
-        // Dim brightness toggle
-        dimMenuItem = NSMenuItem(title: "Sluk skærmen når låget lukkes under afspilning", action: #selector(toggleDimMode), keyEquivalent: "")
-        dimMenuItem.target = self
-        dimMenuItem.state = monitor.isDimBrightnessEnabled ? .on : .off
-        menu.addItem(dimMenuItem)
+        menu.addItem(.separator())
         
-        menu.addItem(NSMenuItem.separator())
-        
-        // Launch at login toggle
-        launchAtLoginItem = NSMenuItem(title: "Start automatisk ved login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        launchAtLoginItem.target = self
-        menu.addItem(launchAtLoginItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // Quit
-        let quitItem = NSMenuItem(title: "Afslut SmartSleep", action: #selector(quitApp), keyEquivalent: "")
-        quitItem.target = self
-        menu.addItem(quitItem)
+        menu.addItem(makeItem("Indstillinger…", action: #selector(openSettings), key: ","))
+        menu.addItem(makeItem("Afslut SmartSleep", action: #selector(quitApp), key: "q"))
         
         statusItem.menu = menu
     }
     
+    private func makeItem(_ title: String, action: Selector, key: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
+    }
+    
+    /// Template-billede, saa ikonet foelger menulinjens lyse eller moerke udseende.
+    private func setStatusIcon(_ symbol: String, description: String) {
+        guard let button = statusItem.button else { return }
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        button.image = image
+        button.title = ""
+    }
+    
     private func setupMonitorCallbacks() {
-        monitor.addObserver(self) { [weak self] isMediaDetected, isSleepPrevented, isLidClosed, source, title, _ in
+        monitor.addObserver(self) { [weak self] isMediaDetected, isSleepPrevented, _, source, title, _ in
             DispatchQueue.main.async {
-                self?.updateUI(isMediaDetected: isMediaDetected, isSleepPrevented: isSleepPrevented, isLidClosed: isLidClosed, source: source, title: title)
+                self?.updateUI(isMediaDetected: isMediaDetected, isSleepPrevented: isSleepPrevented, source: source, title: title)
             }
         }
         monitor.checkMediaAndUpdate()
     }
     
-    private func updateUI(isMediaDetected: Bool, isSleepPrevented: Bool, isLidClosed: Bool, source: String, title: String) {
-        guard let button = statusItem.button else { return }
+    private func updateUI(isMediaDetected: Bool, isSleepPrevented: Bool, source: String, title: String) {
+        let isForced = monitor.isForceKeepAwake && !isMediaDetected
         
-        lidMenuItem.title = isLidClosed ? "Skærmlåg: Lukket 📁" : "Skærmlåg: Åbent 💻"
-        
-        if isSleepPrevented {
-            button.title = "🎵"
-            let trackInfo = title.isEmpty ? source : "\(title) (\(source))"
-            let srcText = source.isEmpty ? (monitor.isForceKeepAwake ? "Tvunget vågen" : "Aktiv lyd") : trackInfo
-            statusMenuItem.title = "Status: 🟢 Søvn deaktiveret (\(srcText))"
-            button.toolTip = "SmartSleep: Mac holdes vågen (\(srcText))"
+        let statusText: String
+        if !isSleepPrevented {
+            statusText = "Mac'en må sove"
+        } else if isForced {
+            statusText = "Holder vågen (tvunget)"
+        } else if !source.isEmpty {
+            statusText = "Holder vågen: \(source)"
         } else {
-            button.title = "💤"
-            statusMenuItem.title = "Status: 💤 Søvn tilladt (Ingen afspilning)"
-            button.toolTip = "SmartSleep: Mac sover normalt ved lukket låg"
+            statusText = "Holder vågen"
         }
+        
+        let symbol = StatusSymbol.name(isSleepPrevented: isSleepPrevented, isMediaDetected: isMediaDetected, isForced: monitor.isForceKeepAwake)
+        setStatusIcon(symbol, description: statusText)
+        statusItem.button?.toolTip = "SmartSleep: \(statusText)"
+        statusMenuItem.title = statusText
+        
+        // Lange videotitler ville goere hele menuen bred.
+        nowPlayingMenuItem.title = title.count > 42 ? String(title.prefix(41)) + "…" : title
+        nowPlayingMenuItem.isHidden = title.isEmpty || !isSleepPrevented
         
         autoMenuItem.state = monitor.isAutoEnabled ? .on : .off
         forceMenuItem.state = monitor.isForceKeepAwake ? .on : .off
-        dimMenuItem.state = monitor.isDimBrightnessEnabled ? .on : .off
     }
+    
+    // MARK: - Handlinger
     
     @objc private func openSettings() {
         SettingsWindowController.shared.showWindow()
@@ -149,68 +144,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func toggleAutoMode() {
         monitor.isAutoEnabled.toggle()
-        autoMenuItem.state = monitor.isAutoEnabled ? .on : .off
     }
     
     @objc private func toggleForceMode() {
         monitor.isForceKeepAwake.toggle()
-        forceMenuItem.state = monitor.isForceKeepAwake ? .on : .off
-    }
-    
-    @objc private func toggleDimMode() {
-        monitor.isDimBrightnessEnabled.toggle()
-        dimMenuItem.state = monitor.isDimBrightnessEnabled ? .on : .off
-    }
-    
-    @objc private func toggleLaunchAtLogin() {
-        let plistPath = launchAgentPlistPath()
-        let fm = FileManager.default
-        
-        if fm.fileExists(atPath: plistPath) {
-            try? fm.removeItem(atPath: plistPath)
-            launchAtLoginItem.state = .off
-        } else {
-            createLaunchAgentPlist()
-            launchAtLoginItem.state = .on
-        }
-    }
-    
-    private func updateLaunchAtLoginState() {
-        let plistPath = launchAgentPlistPath()
-        launchAtLoginItem.state = FileManager.default.fileExists(atPath: plistPath) ? .on : .off
-    }
-    
-    private func launchAgentPlistPath() -> String {
-        let home = NSHomeDirectory()
-        return "\(home)/Library/LaunchAgents/com.personal.SmartSleep.plist"
-    }
-    
-    private func createLaunchAgentPlist() {
-        let appPath = Bundle.main.bundlePath
-        let executablePath = "\(appPath)/Contents/MacOS/SmartSleep"
-        
-        let plistContent = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key>
-            <string>com.personal.SmartSleep</string>
-            <key>ProgramArguments</key>
-            <array>
-                <string>\(executablePath)</string>
-            </array>
-            <key>RunAtLoad</key>
-            <true/>
-            <key>KeepAlive</key>
-            <false/>
-        </dict>
-        </plist>
-        """
-        
-        let folder = (launchAgentPlistPath() as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-        try? plistContent.write(toFile: launchAgentPlistPath(), atomically: true, encoding: .utf8)
     }
     
     @objc private func quitApp() {

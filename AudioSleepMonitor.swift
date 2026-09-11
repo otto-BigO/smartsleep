@@ -84,6 +84,7 @@ public class AudioSleepMonitor {
     private var lastNowPlayingFetch = Date.distantPast
     private var spotifyVolume: Int?
     private var lastLoggedSources = ""
+    private var lastLoggedTitle = ""
     
     private init() {
         // Sikkerhedsnet. Blev appen draebt med SIGKILL mens den holdt Mac'en vaagen,
@@ -270,7 +271,11 @@ public class AudioSleepMonitor {
             if source.isSpotify {
                 self.spotifyVolume = info?.spotifyVolume
             }
-            appLog.notice("Titel fra \(source.name, privacy: .public): \(info?.title ?? "(ingen)", privacy: .public)")
+            let title = info?.title ?? "(ingen)"
+            if title != self.lastLoggedTitle {
+                appLog.notice("Titel fra \(source.name, privacy: .public): \(title, privacy: .public)")
+                self.lastLoggedTitle = title
+            }
             self.notifyObservers(source: self.currentDetectionSource, title: self.nowPlayingTitle, artist: self.nowPlayingArtist)
         }
     }

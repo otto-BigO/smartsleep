@@ -5,26 +5,12 @@ class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController()
     
     private init() {
-        let settingsView = SettingsView()
-        let hostingController = NSHostingController(rootView: settingsView)
-        
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        
-        window.contentViewController = hostingController
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .windowBackgroundColor
-        window.hasShadow = true
-        window.center()
-        window.isReleasedWhenClosed = false
+        let hostingController = NSHostingController(rootView: SettingsView())
+        let window = NSWindow(contentViewController: hostingController)
+        window.styleMask = [.titled, .closable]
         window.title = "SmartSleep"
-        
+        window.isReleasedWhenClosed = false
+        window.setContentSize(hostingController.view.fittingSize)
         super.init(window: window)
     }
     
