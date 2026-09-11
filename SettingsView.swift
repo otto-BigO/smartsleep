@@ -39,6 +39,35 @@ enum LaunchAtLogin {
     }
 }
 
+/// Henter albumcovers og thumbnails, og husker de seneste saa et nummer ikke hentes igen.
+final class ArtworkLoader {
+    static let shared = ArtworkLoader()
+    
+    private let cache: NSCache<NSURL, NSImage> = {
+        let cache = NSCache<NSURL, NSImage>()
+        cache.countLimit = 20
+        return cache
+    }()
+    
+    /// completion kaldes paa main.
+    func image(for url: URL, completion: @escaping (NSImage?) -> Void) {
+        if let cached = cache.object(forKey: url as NSURL) {
+            completion(cached)
+            return
+        }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+            let image = data.flatMap { NSImage(data: $0) }
+            if image == nil {
+                appLog.error("Kunne ikke hente cover: \(error?.localizedDescription ?? "ugyldigt billede", privacy: .public)")
+            }
+            DispatchQueue.main.async {
+                if let image { self?.cache.setObject(image, forKey: url as NSURL) }
+                completion(image)
+            }
+        }.resume()
+    }
+}
+
 // MARK: - View Model
 
 class SettingsViewModel: ObservableObject {
@@ -64,15 +93,22 @@ class SettingsViewModel: ObservableObject {
     @Published var isSleepPrevented = false
     @Published var currentSource = ""
     @Published var nowPlayingTitle = ""
+    @Published var nowPlayingArtist = ""
+    @Published var artwork: NSImage?
+    private var artworkURL: URL?
     
     init() {
-        monitor.addObserver(self) { [weak self] media, prevented, _, source, title, _ in
+        monitor.addObserver(self) { [weak self] media, prevented, _, _, _, _ in
             DispatchQueue.main.async {
                 guard let self else { return }
+                // Laes direkte fra monitoren. Notifikationen ved "soevn tilladt" sender tomme
+                // tekster, ogsaa hvis musikken stadig spiller.
                 self.isMediaDetected = media
                 self.isSleepPrevented = prevented
-                self.currentSource = source
-                self.nowPlayingTitle = title
+                self.currentSource = self.monitor.currentDetectionSource
+                self.nowPlayingTitle = self.monitor.nowPlayingTitle
+                self.nowPlayingArtist = self.monitor.nowPlayingArtist
+                self.updateArtwork(self.monitor.nowPlayingArtworkURL)
                 // Menuen kan ogsaa slaa ting til og fra. Hold vinduet i sync.
                 if self.isAutoEnabled != self.monitor.isAutoEnabled { self.isAutoEnabled = self.monitor.isAutoEnabled }
                 if self.isForceKeepAwake != self.monitor.isForceKeepAwake { self.isForceKeepAwake = self.monitor.isForceKeepAwake }
@@ -87,6 +123,20 @@ class SettingsViewModel: ObservableObject {
     func setLaunchAtLogin(_ enabled: Bool) {
         LaunchAtLogin.set(enabled)
         isLaunchAtLogin = LaunchAtLogin.isEnabled
+    }
+    
+    /// Det gamle cover bliver staaende til det nye er hentet, saa der ikke blinker et tomt felt.
+    private func updateArtwork(_ url: URL?) {
+        guard url != artworkURL else { return }
+        artworkURL = url
+        guard let url else {
+            artwork = nil
+            return
+        }
+        ArtworkLoader.shared.image(for: url) { [weak self] image in
+            guard let self, self.artworkURL == url else { return }
+            self.artwork = image
+        }
     }
 }
 
@@ -124,21 +174,17 @@ struct SettingsView: View {
         .fixedSize()
     }
     
+    // MARK: Nu spiller
+    
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: StatusSymbol.name(
-                isSleepPrevented: viewModel.isSleepPrevented,
-                isMediaDetected: viewModel.isMediaDetected,
-                isForced: viewModel.isForceKeepAwake
-            ))
-            .font(.system(size: 20))
-            .foregroundColor(viewModel.isSleepPrevented ? .accentColor : .secondary)
-            .frame(width: 26)
-            
+            artworkView
             VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.isSleepPrevented ? "Holder Mac'en vågen" : "Mac'en må sove")
+                Text(headerTitle)
                     .font(.system(size: 13, weight: .semibold))
-                Text(subtitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(headerSubtitle)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -148,15 +194,45 @@ struct SettingsView: View {
         }
     }
     
-    private var subtitle: String {
-        guard viewModel.isSleepPrevented else { return "Ingen afspilning" }
-        if !viewModel.nowPlayingTitle.isEmpty {
-            // Kilden foerst, saa den ikke bliver skaaret vaek naar titlen er lang.
-            return "\(viewModel.currentSource) · \(viewModel.nowPlayingTitle)"
+    private var artworkView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+            if viewModel.isMediaDetected, let artwork = viewModel.artwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Image(systemName: StatusSymbol.name(
+                    isSleepPrevented: viewModel.isSleepPrevented,
+                    isMediaDetected: viewModel.isMediaDetected,
+                    isForced: viewModel.isForceKeepAwake
+                ))
+                .font(.system(size: 17))
+                .foregroundColor(viewModel.isMediaDetected ? .accentColor : .secondary)
+            }
         }
-        if !viewModel.currentSource.isEmpty { return viewModel.currentSource }
-        return viewModel.isForceKeepAwake ? "Tvunget vågen" : "Lyden stoppede, slipper om lidt"
+        .frame(width: 40, height: 40)
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
+    
+    private var headerTitle: String {
+        guard viewModel.isMediaDetected else { return "Intet spiller" }
+        return viewModel.nowPlayingTitle.isEmpty ? viewModel.currentSource : viewModel.nowPlayingTitle
+    }
+    
+    private var headerSubtitle: String {
+        guard viewModel.isMediaDetected else {
+            guard viewModel.isSleepPrevented else { return "Mac'en må sove" }
+            return viewModel.isForceKeepAwake ? "Holdes vågen (tvunget)" : "Holdes vågen lidt endnu"
+        }
+        guard !viewModel.nowPlayingTitle.isEmpty else { return "Spiller lyd" }
+        let artist = viewModel.nowPlayingArtist
+        if artist.isEmpty || artist == viewModel.currentSource { return viewModel.currentSource }
+        return "\(artist) · \(viewModel.currentSource)"
+    }
+    
+    // MARK: Indstillinger
     
     private var animationRow: some View {
         HStack(spacing: 10) {
@@ -169,15 +245,8 @@ struct SettingsView: View {
                 .lineLimit(1)
                 .fixedSize()
             Spacer(minLength: 8)
-            Picker("", selection: $viewModel.iconAnimation) {
-                ForEach(IconAnimation.allCases, id: \.self) { style in
-                    Text(style.title).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .frame(width: 140)
+            SegmentPicker(selection: $viewModel.iconAnimation)
+                .frame(width: 144)
         }
         .padding(.vertical, 6)
     }
@@ -197,5 +266,45 @@ struct SettingsView: View {
                 .labelsHidden()
         }
         .padding(.vertical, 6)
+    }
+}
+
+/// Egen segment-kontrol. macOS' egen giver den valgte knap fed skrift, saa bredderne
+/// hopper, og den nye udgave laver en pop-animation ved tryk. Her er alle knapper lige
+/// brede og skriften aendrer sig ikke.
+private struct SegmentPicker: View {
+    @Binding var selection: IconAnimation
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(IconAnimation.allCases, id: \.self) { style in
+                Button {
+                    selection = style
+                } label: {
+                    Text(style.title)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(selection == style ? .white : .primary)
+                        .frame(maxWidth: .infinity, minHeight: 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(selection == style ? Color.accentColor : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(QuietButtonStyle())
+            }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+        )
+    }
+}
+
+/// Ingen skalering ved tryk, kun en svag fade.
+private struct QuietButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.75 : 1)
     }
 }

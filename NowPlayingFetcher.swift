@@ -4,6 +4,7 @@ struct NowPlaying {
     let title: String
     let artist: String
     let spotifyVolume: Int?
+    let artworkURL: URL?
 }
 
 /// Henter sangtitel fra Spotify og videotitel fra Brave via AppleScript.
@@ -42,7 +43,12 @@ final class NowPlayingFetcher {
         if application "Spotify" is running then
             tell application "Spotify"
                 if player state is playing then
-                    return (name of current track) & "|||" & (artist of current track) & "|||" & (sound volume as string)
+                    -- Reklamer og lokale filer har ikke altid et cover.
+                    set art to ""
+                    try
+                        set art to artwork url of current track
+                    end try
+                    return (name of current track) & "|||" & (artist of current track) & "|||" & (sound volume as string) & "|||" & art
                 end if
             end tell
         end if
@@ -50,8 +56,9 @@ final class NowPlayingFetcher {
         """
         guard let output = runAppleScript(script), !output.isEmpty else { return nil }
         let parts = output.components(separatedBy: "|||")
-        guard parts.count == 3 else { return nil }
-        return NowPlaying(title: parts[0], artist: parts[1], spotifyVolume: Int(parts[2]))
+        guard parts.count == 4 else { return nil }
+        return NowPlaying(title: parts[0], artist: parts[1], spotifyVolume: Int(parts[2]),
+                          artworkURL: parts[3].isEmpty ? nil : URL(string: parts[3]))
     }
     
     private static func fetchBrave() -> NowPlaying? {
@@ -61,10 +68,10 @@ final class NowPlayingFetcher {
             tell application "Brave Browser"
                 if (count of windows) is 0 then return ""
                 set t to active tab of front window
-                if (URL of t as string) contains "youtu" then return (title of t as string)
+                if (URL of t as string) contains "youtu" then return (title of t as string) & "|||" & (URL of t as string)
                 repeat with w in windows
                     repeat with t in tabs of w
-                        if (URL of t as string) contains "youtu" then return (title of t as string)
+                        if (URL of t as string) contains "youtu" then return (title of t as string) & "|||" & (URL of t as string)
                     end repeat
                 end repeat
             end tell
@@ -72,7 +79,27 @@ final class NowPlayingFetcher {
         return ""
         """
         guard let raw = runAppleScript(script), !raw.isEmpty else { return nil }
-        return NowPlaying(title: cleanYouTubeTitle(raw), artist: "Brave", spotifyVolume: nil)
+        let parts = raw.components(separatedBy: "|||")
+        let url = parts.count > 1 ? parts[1] : ""
+        return NowPlaying(title: cleanYouTubeTitle(parts[0]), artist: "YouTube", spotifyVolume: nil,
+                          artworkURL: youTubeThumbnail(for: url))
+    }
+    
+    /// Thumbnail ud fra videoens ID. mqdefault er 16:9 uden sorte kanter, i modsaetning til hqdefault.
+    static func youTubeThumbnail(for urlString: String) -> URL? {
+        guard let components = URLComponents(string: urlString), let host = components.host else { return nil }
+        let pathParts = components.path.split(separator: "/").map(String.init)
+        let id: String?
+        if host.hasSuffix("youtu.be") {
+            id = pathParts.first
+        } else if let first = pathParts.first, ["shorts", "live", "embed"].contains(first) {
+            id = pathParts.dropFirst().first
+        } else {
+            id = components.queryItems?.first(where: { $0.name == "v" })?.value
+        }
+        guard let id, !id.isEmpty,
+              id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return nil }
+        return URL(string: "https://i.ytimg.com/vi/\(id)/mqdefault.jpg")
     }
     
     private static func cleanYouTubeTitle(_ raw: String) -> String {

@@ -44,6 +44,7 @@ public class AudioSleepMonitor {
     public private(set) var currentDetectionSource: String = ""
     public private(set) var nowPlayingTitle: String = ""
     public private(set) var nowPlayingArtist: String = ""
+    public private(set) var nowPlayingArtworkURL: URL?
     
     public typealias StateObserver = (_ isMediaDetected: Bool, _ isSleepPrevented: Bool, _ isLidClosed: Bool, _ source: String, _ title: String, _ artist: String) -> Void
     
@@ -257,6 +258,7 @@ public class AudioSleepMonitor {
         if changed {
             nowPlayingTitle = ""
             nowPlayingArtist = ""
+            nowPlayingArtworkURL = nil
             spotifyVolume = nil
         }
         
@@ -268,6 +270,7 @@ public class AudioSleepMonitor {
             guard let self, self.topSource?.bundleID == source.bundleID else { return }
             self.nowPlayingTitle = info?.title ?? ""
             self.nowPlayingArtist = info?.artist ?? ""
+            self.nowPlayingArtworkURL = info?.artworkURL
             if source.isSpotify {
                 self.spotifyVolume = info?.spotifyVolume
             }
