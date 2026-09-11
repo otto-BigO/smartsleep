@@ -56,6 +56,9 @@ class SettingsViewModel: ObservableObject {
         didSet { if monitor.isDimBrightnessEnabled != isDimBrightnessEnabled { monitor.isDimBrightnessEnabled = isDimBrightnessEnabled } }
     }
     @Published var isLaunchAtLogin: Bool = LaunchAtLogin.isEnabled
+    @Published var iconAnimation: IconAnimation = IconAnimation.current {
+        didSet { if IconAnimation.current != iconAnimation { IconAnimation.current = iconAnimation } }
+    }
     
     @Published var isMediaDetected = false
     @Published var isSleepPrevented = false
@@ -112,6 +115,7 @@ struct SettingsView: View {
                     get: { viewModel.isLaunchAtLogin },
                     set: { viewModel.setLaunchAtLogin($0) }
                 ))
+                animationRow
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -152,6 +156,30 @@ struct SettingsView: View {
         }
         if !viewModel.currentSource.isEmpty { return viewModel.currentSource }
         return viewModel.isForceKeepAwake ? "Tvunget vågen" : "Lyden stoppede, slipper om lidt"
+    }
+    
+    private var animationRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .frame(width: 18)
+            Text("Animation")
+                .font(.system(size: 13))
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 8)
+            Picker("", selection: $viewModel.iconAnimation) {
+                ForEach(IconAnimation.allCases, id: \.self) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(width: 140)
+        }
+        .padding(.vertical, 6)
     }
     
     private func row(_ symbol: String, _ title: String, _ isOn: Binding<Bool>) -> some View {

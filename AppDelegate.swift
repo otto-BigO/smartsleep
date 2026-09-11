@@ -4,6 +4,7 @@ import Foundation
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
+    private var iconController: StatusIconController!
     private var statusMenuItem: NSMenuItem!
     private var nowPlayingMenuItem: NSMenuItem!
     private var autoMenuItem: NSMenuItem!
@@ -55,7 +56,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        setStatusIcon("moon.zzz", description: "Mac'en må sove")
+        iconController = StatusIconController(button: statusItem.button!)
+        logStatusItemFrame()
         
         let menu = NSMenu()
         
@@ -89,15 +91,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
     
-    /// Template-billede, saa ikonet foelger menulinjens lyse eller moerke udseende.
-    private func setStatusIcon(_ symbol: String, description: String) {
-        guard let button = statusItem.button else { return }
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)?
-            .withSymbolConfiguration(config)
-        image?.isTemplate = true
-        button.image = image
-        button.title = ""
+    /// Position i skaermkoordinater med origo oeverst til venstre, som screencapture -R bruger.
+    /// Praktisk til at optage ikonet, fordi macOS ikke viser menulinje-ikoner som app-vinduer.
+    private func logStatusItemFrame() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let frame = self?.statusItem.button?.window?.frame,
+                  let screen = NSScreen.screens.first else { return }
+            let top = screen.frame.height - frame.maxY
+            appLog.notice("Menulinje-ikon: \(Int(frame.minX)),\(Int(top)),\(Int(frame.width)),\(Int(frame.height))")
+        }
     }
     
     private func setupMonitorCallbacks() {
@@ -124,7 +126,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let symbol = StatusSymbol.name(isSleepPrevented: isSleepPrevented, isMediaDetected: isMediaDetected, isForced: monitor.isForceKeepAwake)
-        setStatusIcon(symbol, description: statusText)
+        iconController.update(symbol: symbol, isPlaying: isSleepPrevented && isMediaDetected, description: statusText)
         statusItem.button?.toolTip = "SmartSleep: \(statusText)"
         statusMenuItem.title = statusText
         

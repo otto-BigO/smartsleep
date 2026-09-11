@@ -26,6 +26,7 @@ swiftc -O \
     "$SCRIPT_DIR/NowPlayingFetcher.swift" \
     "$SCRIPT_DIR/DisplayBrightnessManager.swift" \
     "$SCRIPT_DIR/AudioSleepMonitor.swift" \
+    "$SCRIPT_DIR/StatusIconController.swift" \
     "$SCRIPT_DIR/SettingsView.swift" \
     "$SCRIPT_DIR/SettingsWindowController.swift" \
     "$SCRIPT_DIR/AppDelegate.swift"
