@@ -25,18 +25,22 @@
 
 ## Requirements
 
-- An Apple Silicon Mac with macOS 14.2 or newer. It runs on older versions, but cannot tell which app is playing.
-- Xcode Command Line Tools: `xcode-select --install`
+An Apple Silicon Mac with macOS 14.2 or newer. It runs on macOS 12 and 13 too, but there it cannot tell which app is playing.
 
 ## Install
 
-```bash
-./install.sh
-```
+1. Download the DMG from [Releases](https://github.com/otto-BigO/smartsleep/releases).
+2. Open it and drag SmartSleep to Applications.
+3. The app is not notarized by Apple, so macOS blocks it the first time. Open **System Settings > Privacy & Security** and click **Open Anyway**.
+4. On first launch SmartSleep asks for your password once. It adds one sudoers rule, `/etc/sudoers.d/smartsleep`, so the app can run `pmset -a disablesleep` without a password. That command is the only way to stop a Mac from sleeping when the lid closes. If you skip it, the Mac still stays awake while music plays, but only with the lid open.
 
-This builds the app, copies it to `~/Applications` and starts it. The first time, it asks for your password to add one sudoers rule, `/etc/sudoers.d/smartsleep`, so the app can run `pmset -a disablesleep` without a password. That command is the only way to stop a Mac from sleeping when the lid closes.
+## Build from source
 
-To build without installing, run `./build.sh`. The app ends up in `build/SmartSleep.app`.
+Needs the Xcode Command Line Tools (`xcode-select --install`).
+
+- `./install.sh` builds the app, copies it to `~/Applications` and starts it.
+- `./build.sh` only builds it, to `build/SmartSleep.app`.
+- `./make_dmg.sh` builds the DMG in `dist/`.
 
 ## Good to know
 

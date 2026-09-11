@@ -1,6 +1,6 @@
 // Genererer AppIcon.icns. Koer fra repo-roden:
-//   swiftc -o /tmp/make_icon Icon/make_icon.swift && /tmp/make_icon /tmp/iconwork
-//   iconutil -c icns /tmp/iconwork/AppIcon.iconset -o AppIcon.icns
+//   swiftc -o /tmp/make_icon Tools/make_icon.swift && /tmp/make_icon /tmp/iconwork
+//   iconutil -c icns /tmp/iconwork/AppIcon.iconset -o Resources/AppIcon.icns
 import AppKit
 
 func render(_ size: Int) -> NSBitmapImageRep {

@@ -1,7 +1,3 @@
 build/
+dist/
 .DS_Store
-
-# Kompilerede testbinaerer fra test_*.swift
-test_brightness
-test_lid
-test_volume

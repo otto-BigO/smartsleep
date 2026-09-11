@@ -1,5 +1,5 @@
 // Genererer docs/banner.png til README'en. Koer fra repo-roden:
-//   swiftc -o /tmp/make_banner Icon/make_banner.swift && /tmp/make_banner
+//   swiftc -o /tmp/make_banner Tools/make_banner.swift && /tmp/make_banner
 import AppKit
 
 let width: CGFloat = 1280
@@ -52,7 +52,7 @@ let textHeight = titleSize.height + 10 + taglineSize.height
 let startX = (width - (iconSize + gap + textWidth)) / 2
 
 // Ikonet har selv luft og skygge i kanten, derfor lidt stoerre end teksten.
-let icon = NSImage(contentsOfFile: "AppIcon.icns")!
+let icon = NSImage(contentsOfFile: "Resources/AppIcon.icns")!
 icon.draw(in: NSRect(x: startX, y: (height - iconSize) / 2, width: iconSize, height: iconSize))
 
 let textX = startX + iconSize + gap

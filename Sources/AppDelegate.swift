@@ -9,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var nowPlayingMenuItem: NSMenuItem!
     private var autoMenuItem: NSMenuItem!
     private var forceMenuItem: NSMenuItem!
+    private var lidPermissionMenuItem: NSMenuItem!
     
     private let monitor = AudioSleepMonitor.shared
     private var signalSources: [DispatchSourceSignal] = []
@@ -24,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupMonitorCallbacks()
         setupSignalHandlers()
+        checkLidPermission()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
@@ -69,6 +71,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         nowPlayingMenuItem.isEnabled = false
         nowPlayingMenuItem.isHidden = true
         menu.addItem(nowPlayingMenuItem)
+        
+        // Vises kun naar sudoers-reglen mangler, fx efter en installation fra DMG'en.
+        lidPermissionMenuItem = makeItem("Enable Lid-Closed Mode…", action: #selector(askForLidPermission))
+        lidPermissionMenuItem.isHidden = true
+        menu.addItem(lidPermissionMenuItem)
         
         menu.addItem(.separator())
         
@@ -139,6 +146,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     // MARK: - Handlinger
+    
+    // MARK: - Tilladelse til lukket laag
+    
+    private static let lidPermissionDeclinedKey = "SmartSleep.lidPermissionDeclined"
+    
+    /// Spoerger ved foerste start hvis reglen mangler. Siger man nej, spoerges der ikke igen,
+    /// men menupunktet bliver staaende.
+    private func checkLidPermission() {
+        lidPermissionMenuItem.isHidden = monitor.hasLidPermission
+        guard !monitor.hasLidPermission,
+              !UserDefaults.standard.bool(forKey: Self.lidPermissionDeclinedKey) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.askForLidPermission()
+        }
+    }
+    
+    @objc private func askForLidPermission() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
+        alert.messageText = "Keep playing with the lid closed?"
+        alert.informativeText = """
+        To stop your Mac from sleeping when the lid closes, SmartSleep needs to run pmset \
+        without a password. macOS asks for your password once to allow it.
+        
+        Without it, SmartSleep still keeps the Mac awake while music plays, but only with \
+        the lid open.
+        """
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Not Now")
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            if SleepPermission.install() {
+                monitor.recheckLidPermission()
+            }
+        } else {
+            UserDefaults.standard.set(true, forKey: Self.lidPermissionDeclinedKey)
+        }
+        lidPermissionMenuItem.isHidden = monitor.hasLidPermission
+    }
     
     @objc private func openSettings() {
         SettingsWindowController.shared.showWindow()

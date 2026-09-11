@@ -13,15 +13,7 @@ fi
 
 APP_DEST="$TARGET_DIR/SmartSleep.app"
 
-echo "🔐 Konfigurerer NOPASSWD for 'sudo pmset -a disablesleep'..."
-USER_NAME="$(whoami)"
-SUDOERS_FILE="/etc/sudoers.d/smartsleep"
-RULE="$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/pmset -a disablesleep *"
-
-# Configure sudoers if not already present
-if [ ! -f "$SUDOERS_FILE" ]; then
-    osascript -e "do shell script \"mkdir -p /etc/sudoers.d && echo '$RULE' > $SUDOERS_FILE && chmod 0440 $SUDOERS_FILE\" with administrator privileges" || true
-fi
+# Sudoers-reglen til 'pmset -a disablesleep' saetter appen selv op ved foerste start.
 
 echo "🚀 Installerer SmartSleep.app i $TARGET_DIR..."
 

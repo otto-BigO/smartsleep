@@ -41,6 +41,9 @@ public class AudioSleepMonitor {
     public private(set) var isMediaDetected: Bool = false
     public private(set) var isSleepPrevented: Bool = false
     public private(set) var isLidClosed: Bool = false
+    /// Om sudoers-reglen findes, saa `sudo -n pmset` virker. Uden den holdes Mac'en kun
+    /// vaagen med aabent laag.
+    public private(set) var hasLidPermission: Bool = false
     public private(set) var currentDetectionSource: String = ""
     public private(set) var nowPlayingTitle: String = ""
     public private(set) var nowPlayingArtist: String = ""
@@ -90,7 +93,10 @@ public class AudioSleepMonitor {
     private init() {
         // Sikkerhedsnet. Blev appen draebt med SIGKILL mens den holdt Mac'en vaagen,
         // staar disablesleep stadig paa 1 og Mac'en vil aldrig sove. Ryd op ved opstart.
-        runPmsetDisableSleep(0)
+        // Kommandoens exit-kode fortaeller samtidig om sudoers-reglen findes.
+        let permitted = runPmsetDisableSleep(0, waitForExit: true)
+        hasLidPermission = permitted
+        appLog.notice("Tilladelse til pmset: \(permitted)")
         isLidClosed = DisplayBrightnessManager.shared.isLidClosed()
         startMonitoring()
         // Doede appen mens skaermen var daempet, gendannes lysstyrken her.
@@ -378,17 +384,30 @@ public class AudioSleepMonitor {
         notifyObservers(source: "", title: "", artist: "")
     }
     
+    /// Koeres efter at sudoers-reglen er sat op. Saetter samtidig den tilstand der skal gaelde nu.
+    public func recheckLidPermission() {
+        let permitted = runPmsetDisableSleep(isSleepPrevented ? 1 : 0, waitForExit: true)
+        hasLidPermission = permitted
+        appLog.notice("Tilladelse til pmset efter opsaetning: \(permitted)")
+    }
+    
     /// -n gør at sudo fejler med det samme i stedet for at haenge og vente paa et kodeord,
     /// hvis sudoers-reglen i /etc/sudoers.d/smartsleep mangler.
-    private func runPmsetDisableSleep(_ state: Int, waitForExit: Bool = false) {
+    /// Returnerer om kommandoen lykkedes. Uden waitForExit vides det ikke, og svaret er true.
+    @discardableResult
+    private func runPmsetDisableSleep(_ state: Int, waitForExit: Bool = false) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
         process.arguments = ["-n", "/usr/bin/pmset", "-a", "disablesleep", "\(state)"]
+        process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            if waitForExit { process.waitUntilExit() }
+            guard waitForExit else { return true }
+            process.waitUntilExit()
+            return process.terminationStatus == 0
         } catch {
             appLog.error("Kunne ikke koere pmset: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
     
