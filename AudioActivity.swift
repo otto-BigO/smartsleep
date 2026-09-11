@@ -30,6 +30,14 @@ enum AudioActivity {
         ("org.videolan.vlc", "VLC"),
     ]
     
+    /// Systemlyd som ingen lytter til. Diktering (CoreSpeech) afspiller en kort lyd naar den
+    /// starter og holder udgangen aaben et stykke tid efter, og skal ikke holde Mac'en vaagen.
+    private static let ignoredBundlePrefixes = ["com.apple.CoreSpeech"]
+    
+    static func isIgnored(bundleID: String) -> Bool {
+        ignoredBundlePrefixes.contains { bundleID.hasPrefix($0) }
+    }
+    
     static func defaultOutputDevice() -> AudioObjectID? {
         guard let id = readUInt32(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice),
               id != kAudioObjectUnknown else { return nil }
@@ -73,6 +81,7 @@ enum AudioActivity {
             let pid = pid_t(bitPattern: readUInt32(object, kAudioProcessPropertyPID) ?? 0)
             guard pid != ownPID else { continue }
             let bundleID = readString(object, kAudioProcessPropertyBundleID) ?? ""
+            guard !isIgnored(bundleID: bundleID) else { continue }
             sources.append(AudioSource(pid: pid, bundleID: bundleID, name: displayName(bundleID: bundleID, pid: pid)))
         }
         return sources.sorted { $0.priority < $1.priority }
