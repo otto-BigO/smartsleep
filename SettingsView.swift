@@ -158,10 +158,10 @@ struct SettingsView: View {
             Divider()
             
             VStack(spacing: 0) {
-                row("waveform", "Automatisk ved lyd", $viewModel.isAutoEnabled)
-                row("bolt", "Hold altid vågen", $viewModel.isForceKeepAwake)
-                row("laptopcomputer", "Sluk skærm ved lukket låg", $viewModel.isDimBrightnessEnabled)
-                row("power", "Start ved login", Binding(
+                row("waveform", "Keep awake while playing", $viewModel.isAutoEnabled)
+                row("bolt", "Always stay awake", $viewModel.isForceKeepAwake)
+                row("laptopcomputer", "Screen off when lid closes", $viewModel.isDimBrightnessEnabled)
+                row("power", "Open at login", Binding(
                     get: { viewModel.isLaunchAtLogin },
                     set: { viewModel.setLaunchAtLogin($0) }
                 ))
@@ -217,16 +217,16 @@ struct SettingsView: View {
     }
     
     private var headerTitle: String {
-        guard viewModel.isMediaDetected else { return "Intet spiller" }
+        guard viewModel.isMediaDetected else { return "Nothing playing" }
         return viewModel.nowPlayingTitle.isEmpty ? viewModel.currentSource : viewModel.nowPlayingTitle
     }
     
     private var headerSubtitle: String {
         guard viewModel.isMediaDetected else {
-            guard viewModel.isSleepPrevented else { return "Mac'en må sove" }
-            return viewModel.isForceKeepAwake ? "Holdes vågen (tvunget)" : "Holdes vågen lidt endnu"
+            guard viewModel.isSleepPrevented else { return "Mac can sleep" }
+            return viewModel.isForceKeepAwake ? "Staying awake (forced)" : "Staying awake a few more seconds"
         }
-        guard !viewModel.nowPlayingTitle.isEmpty else { return "Spiller lyd" }
+        guard !viewModel.nowPlayingTitle.isEmpty else { return "Playing audio" }
         let artist = viewModel.nowPlayingArtist
         if artist.isEmpty || artist == viewModel.currentSource { return viewModel.currentSource }
         return "\(artist) · \(viewModel.currentSource)"

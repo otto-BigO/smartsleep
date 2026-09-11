@@ -21,7 +21,7 @@ enum AudioActivity {
         ("com.google.Chrome", "Chrome"),
         ("com.apple.Safari", "Safari"),
         ("com.apple.WebKit", "Safari"),
-        ("com.apple.Music", "Musik"),
+        ("com.apple.Music", "Music"),
         ("com.apple.TV", "TV"),
         ("com.apple.podcasts", "Podcasts"),
         ("org.mozilla.firefox", "Firefox"),

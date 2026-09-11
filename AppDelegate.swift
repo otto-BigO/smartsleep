@@ -61,7 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let menu = NSMenu()
         
-        statusMenuItem = NSMenuItem(title: "Mac'en må sove", action: nil, keyEquivalent: "")
+        statusMenuItem = NSMenuItem(title: "Mac can sleep", action: nil, keyEquivalent: "")
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
         
@@ -72,15 +72,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         menu.addItem(.separator())
         
-        autoMenuItem = makeItem("Automatisk ved lyd", action: #selector(toggleAutoMode))
+        autoMenuItem = makeItem("Keep awake while playing", action: #selector(toggleAutoMode))
         menu.addItem(autoMenuItem)
-        forceMenuItem = makeItem("Hold altid vågen", action: #selector(toggleForceMode))
+        forceMenuItem = makeItem("Always stay awake", action: #selector(toggleForceMode))
         menu.addItem(forceMenuItem)
         
         menu.addItem(.separator())
         
-        menu.addItem(makeItem("Indstillinger…", action: #selector(openSettings), key: ","))
-        menu.addItem(makeItem("Afslut SmartSleep", action: #selector(quitApp), key: "q"))
+        menu.addItem(makeItem("Settings…", action: #selector(openSettings), key: ","))
+        menu.addItem(makeItem("Quit SmartSleep", action: #selector(quitApp), key: "q"))
         
         statusItem.menu = menu
     }
@@ -116,13 +116,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let statusText: String
         if !isSleepPrevented {
-            statusText = "Mac'en må sove"
+            statusText = "Mac can sleep"
         } else if isForced {
-            statusText = "Holder vågen (tvunget)"
+            statusText = "Staying awake (forced)"
         } else if !source.isEmpty {
-            statusText = "Holder vågen: \(source)"
+            statusText = "Staying awake: \(source)"
         } else {
-            statusText = "Holder vågen"
+            statusText = "Staying awake"
         }
         
         let symbol = StatusSymbol.name(isSleepPrevented: isSleepPrevented, isMediaDetected: isMediaDetected, isForced: monitor.isForceKeepAwake)

@@ -8,9 +8,9 @@ enum IconAnimation: String, CaseIterable {
     
     var title: String {
         switch self {
-        case .bars: return "Bjælker"
-        case .pulse: return "Puls"
-        case .off: return "Fra"
+        case .bars: return "Bars"
+        case .pulse: return "Pulse"
+        case .off: return "Off"
         }
     }
     

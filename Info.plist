@@ -23,7 +23,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>SmartSleep læser navnet på sangen eller videoen der spiller i Spotify og Brave, så det kan vises i menuen.</string>
+    <string>SmartSleep reads the name of the song or video playing in Spotify and Brave, so it can show it in the menu.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

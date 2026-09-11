@@ -203,12 +203,12 @@ public class AudioSleepMonitor {
         if let device = AudioActivity.defaultOutputDevice() {
             let (volume, muted) = AudioActivity.outputVolumeAndMute(device)
             if muted || volume <= 0.001 {
-                description = "Lydstyrke er 0 / Slået fra"
+                description = "Volume is 0 or muted"
             } else if let active = AudioActivity.activeOutputSources() {
                 sources = active
                 if let first = active.first {
                     if first.isSpotify && active.count == 1 && spotifyVolume == 0 {
-                        description = "Spotify lydstyrke er 0"
+                        description = "Spotify volume is 0"
                     } else {
                         detected = true
                         description = first.name
@@ -217,7 +217,7 @@ public class AudioSleepMonitor {
             } else if AudioActivity.isDeviceRunning(device) {
                 // macOS under 14.2: vi ved kun at der spiller noget, ikke hvad.
                 detected = true
-                description = "Lyd afspilles"
+                description = "Playing audio"
             }
         }
         
