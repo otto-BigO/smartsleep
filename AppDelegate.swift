@@ -53,7 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if let button = statusItem.button {
             button.title = "💤"
-            button.toolTip = "SmartSleep: Overvåger Spotify og Brave"
+            button.toolTip = "SmartSleep: Holder Mac'en vågen når der spilles lyd"
         }
         
         let menu = NSMenu()
@@ -78,7 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         
         // Auto mode toggle
-        autoMenuItem = NSMenuItem(title: "Automatisk dvalestyring (Spotify / Brave)", action: #selector(toggleAutoMode), keyEquivalent: "")
+        autoMenuItem = NSMenuItem(title: "Automatisk dvalestyring (når der spilles lyd)", action: #selector(toggleAutoMode), keyEquivalent: "")
         autoMenuItem.target = self
         autoMenuItem.state = monitor.isAutoEnabled ? .on : .off
         menu.addItem(autoMenuItem)
@@ -90,7 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(forceMenuItem)
         
         // Dim brightness toggle
-        dimMenuItem = NSMenuItem(title: "Skru helt ned for skærmlys ved afspilning (spar strøm)", action: #selector(toggleDimMode), keyEquivalent: "")
+        dimMenuItem = NSMenuItem(title: "Sluk skærmen når låget lukkes under afspilning", action: #selector(toggleDimMode), keyEquivalent: "")
         dimMenuItem.target = self
         dimMenuItem.state = monitor.isDimBrightnessEnabled ? .on : .off
         menu.addItem(dimMenuItem)

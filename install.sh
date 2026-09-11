@@ -25,11 +25,16 @@ fi
 
 echo "🚀 Installerer SmartSleep.app i $TARGET_DIR..."
 
-# Stop any running instance
+# Stop kørende instans og vent til den er helt ude. Den rydder op (pmset) før den
+# afslutter, og åbnes den nye imens, fejler 'open' med -600.
 pkill -f "SmartSleep.app/Contents/MacOS/SmartSleep" || true
+for _ in $(seq 1 50); do
+    pgrep -f "SmartSleep.app/Contents/MacOS/SmartSleep" >/dev/null || break
+    sleep 0.1
+done
 
 # Restore normal sleep before restarting
-sudo pmset -a disablesleep 0 2>/dev/null || true
+sudo -n /usr/bin/pmset -a disablesleep 0 2>/dev/null || true
 
 # Copy app to Applications
 rm -rf "$APP_DEST"

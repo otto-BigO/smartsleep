@@ -202,7 +202,7 @@ struct SettingsView: View {
             settingRow(
                 icon: "music.note", color: .blue,
                 title: "Automatisk dvalestyring",
-                sub: "Spotify & Brave YouTube",
+                sub: "Når en app spiller lyd",
                 isOn: $viewModel.isAutoEnabled
             )
             
@@ -210,8 +210,8 @@ struct SettingsView: View {
             
             settingRow(
                 icon: "sun.min.fill", color: .orange,
-                title: "Dæmp skærmlys",
-                sub: "Spar strøm ved afspilning",
+                title: "Sluk skærmen",
+                sub: "Når låget lukkes under afspilning",
                 isOn: $viewModel.isDimBrightnessEnabled
             )
             
