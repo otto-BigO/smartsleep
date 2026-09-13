@@ -94,9 +94,8 @@ public class AudioSleepMonitor {
         // Sikkerhedsnet. Blev appen draebt med SIGKILL mens den holdt Mac'en vaagen,
         // staar disablesleep stadig paa 1 og Mac'en vil aldrig sove. Ryd op ved opstart.
         // Kommandoens exit-kode fortaeller samtidig om sudoers-reglen findes.
-        let permitted = runPmsetDisableSleep(0, waitForExit: true)
-        hasLidPermission = permitted
-        appLog.notice("Tilladelse til pmset: \(permitted)")
+        runPmsetDisableSleep(0, waitForExit: true)
+        appLog.notice("Tilladelse til pmset: \(self.hasLidPermission)")
         isLidClosed = DisplayBrightnessManager.shared.isLidClosed()
         startMonitoring()
         // Doede appen mens skaermen var daempet, gendannes lysstyrken her.
@@ -365,6 +364,9 @@ public class AudioSleepMonitor {
         createAssertion(kIOPMAssertionTypePreventSystemSleep, into: &systemSleepAssertionID)
         createAssertion(kIOPMAssertPreventUserIdleSystemSleep, into: &idleSleepAssertionID)
         runPmsetDisableSleep(1)
+        if !hasLidPermission {
+            appLog.error("Ingen tilladelse til pmset: Mac'en holdes kun vaagen med aabent laag")
+        }
         
         isSleepPrevented = true
         applyDisplayPolicy()
@@ -386,9 +388,17 @@ public class AudioSleepMonitor {
     
     /// Koeres efter at sudoers-reglen er sat op. Saetter samtidig den tilstand der skal gaelde nu.
     public func recheckLidPermission() {
-        let permitted = runPmsetDisableSleep(isSleepPrevented ? 1 : 0, waitForExit: true)
+        runPmsetDisableSleep(isSleepPrevented ? 1 : 0, waitForExit: true)
+        appLog.notice("Tilladelse til pmset ved tjek: \(self.hasLidPermission)")
+    }
+    
+    /// Hver pmset-koersel fortaeller om reglen stadig virker, saa en regel der slettes eller
+    /// saettes op mens appen koerer, opdages uden genstart.
+    private func updateLidPermission(_ permitted: Bool) {
+        guard permitted != hasLidPermission else { return }
         hasLidPermission = permitted
-        appLog.notice("Tilladelse til pmset efter opsaetning: \(permitted)")
+        appLog.notice("Tilladelse til pmset aendret: \(permitted)")
+        notifyObservers(source: currentDetectionSource, title: nowPlayingTitle, artist: nowPlayingArtist)
     }
     
     /// -n gør at sudo fejler med det samme i stedet for at haenge og vente paa et kodeord,
@@ -400,11 +410,19 @@ public class AudioSleepMonitor {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
         process.arguments = ["-n", "/usr/bin/pmset", "-a", "disablesleep", "\(state)"]
         process.standardError = FileHandle.nullDevice
+        if !waitForExit {
+            process.terminationHandler = { [weak self] finished in
+                let ok = finished.terminationStatus == 0
+                DispatchQueue.main.async { self?.updateLidPermission(ok) }
+            }
+        }
         do {
             try process.run()
             guard waitForExit else { return true }
             process.waitUntilExit()
-            return process.terminationStatus == 0
+            let ok = process.terminationStatus == 0
+            updateLidPermission(ok)
+            return ok
         } catch {
             appLog.error("Kunne ikke koere pmset: \(error.localizedDescription, privacy: .public)")
             return false

@@ -34,6 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     /// Aabnes appen igen mens den koerer (fx fra Finder eller Spotlight), vises indstillingerne.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        monitor.recheckLidPermission()
         openSettings()
         return false
     }
@@ -121,8 +122,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateUI(isMediaDetected: Bool, isSleepPrevented: Bool, source: String, title: String) {
         let isForced = monitor.isForceKeepAwake && !isMediaDetected
         
+        let isPaused = !monitor.isAutoEnabled && !monitor.isForceKeepAwake
         let statusText: String
-        if !isSleepPrevented {
+        if isPaused {
+            statusText = "Paused. Mac sleeps as usual"
+        } else if !isSleepPrevented {
             statusText = "Mac can sleep"
         } else if isForced {
             statusText = "Staying awake (forced)"
@@ -132,7 +136,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             statusText = "Staying awake"
         }
         
-        let symbol = StatusSymbol.name(isSleepPrevented: isSleepPrevented, isMediaDetected: isMediaDetected, isForced: monitor.isForceKeepAwake)
+        let symbol = StatusSymbol.name(isSleepPrevented: isSleepPrevented, isMediaDetected: isMediaDetected, isForced: monitor.isForceKeepAwake, isPaused: isPaused)
         iconController.update(symbol: symbol, isPlaying: isSleepPrevented && isMediaDetected, description: statusText)
         statusItem.button?.toolTip = "SmartSleep: \(statusText)"
         statusMenuItem.title = statusText
@@ -143,6 +147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         autoMenuItem.state = monitor.isAutoEnabled ? .on : .off
         forceMenuItem.state = monitor.isForceKeepAwake ? .on : .off
+        lidPermissionMenuItem.isHidden = monitor.hasLidPermission
     }
     
     // MARK: - Handlinger
@@ -193,6 +198,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc private func toggleAutoMode() {
         monitor.isAutoEnabled.toggle()
+        appLog.notice("Keep awake while playing slaaet \(self.monitor.isAutoEnabled ? "til" : "fra", privacy: .public) i menuen")
     }
     
     @objc private func toggleForceMode() {

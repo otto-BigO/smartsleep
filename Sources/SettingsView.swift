@@ -3,7 +3,10 @@ import AppKit
 
 /// Samme ikon i menulinjen og i indstillingsvinduet.
 enum StatusSymbol {
-    static func name(isSleepPrevented: Bool, isMediaDetected: Bool, isForced: Bool) -> String {
+    /// Pause har sit eget ikon. Slaaet fra ser ellers praecis ud som "intet spiller",
+    /// og saa opdager man ikke at appen ikke goer noget.
+    static func name(isSleepPrevented: Bool, isMediaDetected: Bool, isForced: Bool, isPaused: Bool) -> String {
+        if isPaused { return "pause.circle" }
         guard isSleepPrevented else { return "moon.zzz" }
         return (isForced && !isMediaDetected) ? "bolt.fill" : "waveform"
     }
@@ -76,7 +79,11 @@ class SettingsViewModel: ObservableObject {
     // Kun skriv til monitoren ved en reel aendring. Ellers ville en synkronisering fra
     // monitoren trigge en ny notifikation, der synkroniserer igen, og saa videre.
     @Published var isAutoEnabled: Bool = AudioSleepMonitor.shared.isAutoEnabled {
-        didSet { if monitor.isAutoEnabled != isAutoEnabled { monitor.isAutoEnabled = isAutoEnabled } }
+        didSet {
+            guard monitor.isAutoEnabled != isAutoEnabled else { return }
+            appLog.notice("Keep awake while playing slaaet \(self.isAutoEnabled ? "til" : "fra", privacy: .public) i vinduet")
+            monitor.isAutoEnabled = isAutoEnabled
+        }
     }
     @Published var isForceKeepAwake: Bool = AudioSleepMonitor.shared.isForceKeepAwake {
         didSet { if monitor.isForceKeepAwake != isForceKeepAwake { monitor.isForceKeepAwake = isForceKeepAwake } }
@@ -206,7 +213,8 @@ struct SettingsView: View {
                 Image(systemName: StatusSymbol.name(
                     isSleepPrevented: viewModel.isSleepPrevented,
                     isMediaDetected: viewModel.isMediaDetected,
-                    isForced: viewModel.isForceKeepAwake
+                    isForced: viewModel.isForceKeepAwake,
+                    isPaused: isPaused
                 ))
                 .font(.system(size: 17))
                 .foregroundColor(viewModel.isMediaDetected ? .accentColor : .secondary)
@@ -221,7 +229,14 @@ struct SettingsView: View {
         return viewModel.nowPlayingTitle.isEmpty ? viewModel.currentSource : viewModel.nowPlayingTitle
     }
     
+    private var isPaused: Bool {
+        !viewModel.isAutoEnabled && !viewModel.isForceKeepAwake
+    }
+    
     private var headerSubtitle: String {
+        if isPaused {
+            return viewModel.isMediaDetected ? "Paused · \(viewModel.currentSource)" : "Paused. Mac sleeps as usual"
+        }
         guard viewModel.isMediaDetected else {
             guard viewModel.isSleepPrevented else { return "Mac can sleep" }
             return viewModel.isForceKeepAwake ? "Staying awake (forced)" : "Staying awake a few more seconds"

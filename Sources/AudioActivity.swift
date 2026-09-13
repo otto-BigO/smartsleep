@@ -32,7 +32,8 @@ enum AudioActivity {
     
     /// Systemlyd som ingen lytter til. Diktering (CoreSpeech) afspiller en kort lyd naar den
     /// starter og holder udgangen aaben et stykke tid efter, og skal ikke holde Mac'en vaagen.
-    private static let ignoredBundlePrefixes = ["com.apple.CoreSpeech"]
+    /// systemsoundserverd spiller macOS' advarsels- og notifikationslyde.
+    private static let ignoredBundlePrefixes = ["com.apple.CoreSpeech", "systemsoundserverd"]
     
     static func isIgnored(bundleID: String) -> Bool {
         ignoredBundlePrefixes.contains { bundleID.hasPrefix($0) }
@@ -95,7 +96,13 @@ enum AudioActivity {
             // Hjaelpeprocesser hedder fx "Foo Helper (Renderer)". Vis app-navnet.
             return name.components(separatedBy: " Helper").first ?? name
         }
-        return bundleID.isEmpty ? "pid \(pid)" : bundleID
+        if !bundleID.isEmpty { return bundleID }
+        // Kommandolinjeprogrammer (fx afplay) har hverken bundle-ID eller app-navn.
+        var buffer = [CChar](repeating: 0, count: 256)
+        if proc_name(pid, &buffer, UInt32(buffer.count)) > 0 {
+            return String(cString: buffer)
+        }
+        return "pid \(pid)"
     }
     
     // MARK: - CoreAudio-hjaelpere

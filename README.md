@@ -21,6 +21,7 @@
 - When an app plays sound, the Mac stays awake. Close the lid and the music keeps going.
 - If you close the lid while something plays, the screen turns off. It comes back at the same brightness when you open it.
 - When the sound stops, the Mac sleeps normally again.
+- A pause icon in the menu bar means "Keep awake while playing" is switched off, so nothing is kept awake.
 - The menu bar icon moves while music plays. The settings window shows what is playing, with the album cover from Spotify or the video thumbnail from YouTube in Brave.
 
 ## Requirements
